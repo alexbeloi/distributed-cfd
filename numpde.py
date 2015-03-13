@@ -2,11 +2,6 @@ import math
 import operator
 import itertools
 
-const_rangex = 2*math.pi
-const_cfl = 0.9
-const_stensize = 5
-const_block_size = 128
-
 # Work Block
 #
 # array:    data storage
@@ -47,7 +42,7 @@ class Work_Block(object):
         return self._get_val(self._array, map(operator.sub(position, [stensize for i in range(self.dim())])))
 
     def set_val_loc(self, position, value):
-        set_val(self._array, map(operator.add(position, [stensize for i in range(self.dim())])), value)
+        set_val(self._array, map(operator.add(position, [stensize for i in self.size()])), value)
 
     def _glob_to_loc(self, glob_coords):
         return map(operator.sub(glob_coords, self._start))
@@ -61,7 +56,10 @@ class Work_Block(object):
         return list(itertools.product(*[ range(_temp_start[i],_temp_end[i]) for i in range(self.dim()) ]))
 
     def work_cell_list(self):
-        return list(itertools.product(*[ range(self._start[i],self._end[i]) for i in range(self.dim())) ]))
+        return list(itertools.product(*[range(self._start[i],self._end[i]) for i in range(self.dim())) ]))
+
+    def loc_work_cell_list(self):
+        return list(itertools.product(*[range(0,self._end[i]-self._stensize)] for i in range(self.dim())))
 
 
 class Solution(object):
