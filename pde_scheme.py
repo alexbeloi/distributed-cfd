@@ -8,8 +8,31 @@ dy = local.const_dx
 ax = local.const_ax
 ay = local.const_ay
 
+def Update_Boundary(work):
 
-def Update_Boundary(solution, work):
+
+# rewrite this into Work_Block class in the future -Alex
+def Update_Periodic_Boundary(work1, work2):
+    for i in range(work1.dim()):
+        if work1.coords[i] == work1._stensize:
+            for cell in work1.loc_work_cell_list():
+                if cell[i]<work1._stensize:
+                    _temp = cell
+                    _temp[i] = work2.size()[i]-work2._stensize+_temp[i]
+                    work2.set_val_loc(_temp, float(work1.get_val_loc(cell)))
+
+    if work2.coords[i] == work2._stensize:
+        for cell in work2.loc_work_cell_list():
+            if cell[i]<work1._stensize:
+                _temp = cell
+                _temp[i] = work1.size()[i]-work1._stensize+_temp[i]
+                work1.set_val_loc(_temp, float(work2.get_val_loc(cell)))
+
+    work1.bdry_ghost_done[work2.coords] = True
+    work1.bdry_done[work2.coords] = False
+
+    work2.bdry_ghost_done[work1.coords] = True
+    work2.bdry_done[work1.coords] = False
 
 # very general way to update block by duplicating array, not the most efficient
 # but it is flexible, move into Work_Block class when I find a more general
@@ -22,15 +45,22 @@ def Update_Block(work):
 
     work.array = list(temp_array)
 
-    # update boundary if work block has boundary edges
-    if work.isboundary:
-
 
 def Update_Flags(work):
     for key in work.nbr_block_dict:
         work.nbr_block_dict[key].nbr_done[work.coord] = True
-        if key in work.nbr_done:
+        if work.nbr_done[key]:
             numpde.Update_Ghost(work, work.nbr_block_dict[key])
+
+    # update boundary if block is a boundary block
+    if work.is_boundary:
+        # if periodic
+        for key in work.bdry_block_dict:
+            work.bdry_block_dict[key].bdry_done[work.coord] = True
+            if work.bdry_done[key]:
+                Update_Periodic_Boundary(work, work.bdry_block_dict[key])
+        # if not periodic
+        # Update_Boundary(work)
 
     work.reset()
     work.time_inc()

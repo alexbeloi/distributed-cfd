@@ -26,10 +26,20 @@ class Work_Block(object):
         self.nbr_done = {}
         self.nbr_ghost_done = {}
 
+        # boundary flags
+        self.bdry_block_dict ={}
+        self.bdry_done = {}
+        self.bdry_ghost_done = {}
+
     def add_neighbor(self, work2):
         self.nbr_block_dict[work2.coord] = work2
         self.nbr_done[work2.coord] = False
         self.nbr_ghost_done[work2.coord] = False
+
+    def add_bdry(self, work2):
+        self.bdry_block_dict[work2.coord] = work2
+        self.bdry_done[work2.coord] = False
+        self.bdry_ghost_done[work2.coord] = False
 
     def dim(self):
         return dimension(self._array)
@@ -56,8 +66,8 @@ class Work_Block(object):
         self.time_step = self.time_step+1
 
     def cell_list(self):
-        _temp_start = [x-stensize for x in self._start]
-        _temp_end = [x+stensize for x in self._end]
+        _temp_start = [x-self._stensize for x in self._start]
+        _temp_end = [x+self._stensize for x in self._end]
         return list(itertools.product(*[ range(_temp_start[i],_temp_end[i]) for i in range(self.dim()) ]))
 
     def work_cell_list(self):
@@ -70,12 +80,23 @@ class Work_Block(object):
         for key in self.nbr_ghost_done:
             self.nbr_done[key] = False
 
+    def is_boundary(self):
+        for i in range(self.dim()):
+            if self.work.coords[i] == self.stensize or self.coords[i] + self._block_size > self.size()[i]:
+                return True
+        return False
+
     # gives nice printable output, given an element of work_cell_list
     def real_cell_out(self, cell):
         _temp = tuple(map(operator.sub(map(operator.add(cell, self._start)),[self._stensize for i in range(self.dim())])))
         _temp.append(self.time_step)
         _temp.append(self.get_val_loc(cell))
         return _temp
+
+# Solution
+#
+# Block_Generator:  partitions initial_state into Work_Block pieces
+# fill_neighbors:   gives pointers to blocks so they know their neighbors
 
 class Solution(object):
     def __init__(self, initial_state, block_size, stensize, periodic=False, time_step=0):
@@ -102,8 +123,23 @@ class Solution(object):
 
     def fill_neighbors(self):
         for block in self.blocks:
+            self._block_dict[block.coords] = block
             for neighbor in self.neighbors(block):
                 block.add_neighbor(neighbor)
+
+            # if boundary is periodic, must also keep track of blocks on opposite
+            # end of the solution space
+            if periodic:
+                if block.is_boundary:
+                    for i in range(block.dim()):
+                        _temp = list(block.coords)
+                        if block.coords[i] == self._stensize:
+                            _temp[i] = xrange(self._stensize, self.size()[i] - self._stensize, self._block_size)[-1]
+                            block.add_bdry(self._block_dict[_temp])
+                        else if block.coords[i] == xrange(self._stensize, self.size()[i] - self._stensize, self._block_size)[-1]
+                            _temp[i] = self._stensize
+                            block.add_bdry(self._block_dict[_temp])
+
 
     def add_block(self, work):
         self._block_dict[work.coords] = work
@@ -129,11 +165,7 @@ class Solution(object):
                 return False
         return True
 
-    def _is_boundary_cell(self, work):
-        for i in range(self.dim()):
-            if self.work.coords[i] == self.stensize or self.work.coords[i] + self._block_size > self.size()[i]:
-                return TRUE
-        return False
+
 
     # simple function to generate all tuples of a certain length with
     # letters '0' and 'block_size'
@@ -150,10 +182,15 @@ class Solution(object):
 # should be "simple" to calculate which blocks overlap based on coordinates of
 # the given blocks instead of doing a list intersection (which is probably
 # expensive
+#
+# rewrite this into the Work_Block class in the future -Alex
 def Update_Ghost(work1, work2):
-    for [cell in work1.cell_list() if cell in work2.work_cell_list()]:
+    _temp = set(work2.work_cell_list())
+    for [cell for cell in work1.cell_list() if cell in _temp]:
         work1.set_val_glob(cell, float(work2.get_val_glob(cell)))
-    for [cell in work2.cell_list() if cell in work1.work_cell_list()]:
+
+    _temp = set(work1.work_cell_list())
+    for [cell for cell in work2.cell_list() if cell in _temp]:
         work2.set_val_glob(cell, float(work1.get_val_glob(cell)))
 
     work1.nbr_ghost_done[work2.coords] = True

@@ -130,7 +130,7 @@ class Problem(object:)
             if work.time_step*local.const_dt < finish_time:
                 # check if this block finished all its ghost cell updates, if
                 # so add it back to the queue
-                if all(work.nbr_ghost_done.values()):
+                if all(work.nbr_ghost_done.values()) and all(work.bdry_ghost_done.values()):
                     self._work_queue.add(work)
                 # check if its ok to add the neighbors to the queue too
                 for neighor in work.nbr_block_dict.values():
