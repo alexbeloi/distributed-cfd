@@ -19,12 +19,17 @@ class Work_Block(object):
         self._array = array
         self._stensize = stensize
         self._dimension = dimension(array)
+        self.time_step = time_step
+
+        # neighbor data
         self.nbr_block_dict = {}
         self.nbr_done = {}
+        self.nbr_ghost_done = {}
 
     def add_neighbor(self, work2):
         self.nbr_block_dict[work2.coord] = work2
         self.nbr_done[work2.coord] = False
+        self.nbr_ghost_done[work2.coord] = False
 
     def dim(self):
         return dimension(self._array)
@@ -39,10 +44,10 @@ class Work_Block(object):
         self.set_val_loc(self._array, self._glob_to_loc(position), value)
 
     def get_val_loc(self, position):
-        return self._get_val(self._array, map(operator.sub(position, [stensize for i in range(self.dim())])))
+        return get_val(self._array, map(operator.add(position, [self._stensize for i in range(self.dim())])))
 
     def set_val_loc(self, position, value):
-        set_val(self._array, map(operator.add(position, [stensize for i in self.size()])), value)
+        set_val(self._array, map(operator.add(position, [self._stensize for i in self.size()])), value)
 
     def _glob_to_loc(self, glob_coords):
         return map(operator.sub(glob_coords, self._start))
@@ -61,6 +66,16 @@ class Work_Block(object):
     def loc_work_cell_list(self):
         return list(itertools.product(*[range(0,self._end[i]-self._stensize)] for i in range(self.dim())))
 
+    def reset(self):
+        for key in self.nbr_ghost_done:
+            self.nbr_done[key] = False
+
+    # gives nice printable output, given an element of work_cell_list
+    def real_cell_out(self, cell):
+        _temp = tuple(map(operator.sub(map(operator.add(cell, self._start)),[self._stensize for i in range(self.dim())])))
+        _temp.append(self.time_step)
+        _temp.append(self.get_val_loc(cell))
+        return _temp
 
 class Solution(object):
     def __init__(self, initial_state, block_size, stensize, periodic=False, time_step=0):
@@ -111,14 +126,14 @@ class Solution(object):
     def _valid_coord(self, coords):
         for i in range(self.dim()):
             if coords[i] <0 or coords[i] >= self.size()[i]:
-                return FALSE
-        return TRUE
+                return False
+        return True
 
     def _is_boundary_cell(self, work):
         for i in range(self.dim()):
             if self.work.coords[i] == self.stensize or self.work.coords[i] + self._block_size > self.size()[i]:
                 return TRUE
-        return FALSE
+        return False
 
     # simple function to generate all tuples of a certain length with
     # letters '0' and 'block_size'
@@ -140,6 +155,18 @@ def Update_Ghost(work1, work2):
         work1.set_val_glob(cell, float(work2.get_val_glob(cell)))
     for [cell in work2.cell_list() if cell in work1.work_cell_list()]:
         work2.set_val_glob(cell, float(work1.get_val_glob(cell)))
+
+    work1.nbr_ghost_done[work2.coords] = True
+    work1.nbr_done[work2.coords] = False
+
+    work2.nbr_ghost_done[work1.coords] = True
+    work2.nbr_done[work1.coords] = False
+
+def Update_Ghost_All(work):
+    for key,block in work.nbr_block_dict:
+        Update_Ghost(work,block)
+        work.nbr.done[key] = False
+
 
 
 # GENERAL ARRAY FUNCTIONS
