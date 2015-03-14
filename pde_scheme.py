@@ -8,7 +8,7 @@ dy = local.const_dx
 ax = local.const_ax
 ay = local.const_ay
 
-def Update_Boundary(work):
+#def Update_Boundary(work):
 
 
 # rewrite this into Work_Block class in the future -Alex

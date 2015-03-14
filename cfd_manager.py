@@ -4,6 +4,8 @@ import xmlrpclib
 import sys
 import numpde
 import pde_scheme
+import local
+import itertools
 from SimpleXMLRPCServer import SimpleXMLRPCServer
 
 #
@@ -64,7 +66,7 @@ class WorkGenerator(object):
     def next(self):
         return next(self._work)
 
-class Problem(object:)
+class Problem(object):
     def __init__(self, solution, output, finish_time):
         self._output = output
         self._solution = solution
@@ -121,7 +123,7 @@ class Problem(object:)
             pde_scheme.Update_Flags(work)
 
             if self._output:
-                with open(self._output. 'a') as f:
+                with open(self._output, 'a') as f:
                     for cell in work.work_cell_list():
                         f.write(work.real_cell_out(cell))
                     f.flush()
@@ -152,14 +154,14 @@ if __name__ == '__main__':
 
     finish_time = int(sys.argv[1])
 
-    rangex = numpde.const_rangex
-    cfl = numpde.const_cfl
-    stensize = numpde.const_stensize
-    block_size = numpde.const_block_size
+    rangex = local.const_range
+    cfl = local.const_cfl
+    stensize = local.const_stensize
+    block_size = local.const_block_size
 
     output = None
-    if len(sys.argv) == 6:
-        output = sys.argv[5]
+    if len(sys.argv) == 3:
+        output = sys.argv[2]
 
     # Get initial condition and boundary conditions from local.py
     solution = numpde.Solution(local.Init_Condition(), block_size, stensize, True)

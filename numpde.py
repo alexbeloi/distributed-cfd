@@ -15,7 +15,7 @@ class Work_Block(object):
     def __init__(self, coords, array, stensize, time_step=0):
         self.coords = coords
         self._start = coords
-        self._end = map(operator.sub(map(operator.add, coords, self.size()), [2*stensize for i in range(self.dim())])
+        self._end = map(operator.sub(map(operator.add, coords, self.size()), [2*stensize for i in range(self.dim())]))
         self._array = array
         self._stensize = stensize
         self._dimension = dimension(array)
@@ -68,13 +68,13 @@ class Work_Block(object):
     def cell_list(self):
         _temp_start = [x-self._stensize for x in self._start]
         _temp_end = [x+self._stensize for x in self._end]
-        return list(itertools.product(*[ range(_temp_start[i],_temp_end[i]) for i in range(self.dim()) ]))
+        return list(itertools.product(*[range(_temp_start[i],_temp_end[i]) for i in range(self.dim()) ] ) )
 
     def work_cell_list(self):
-        return list(itertools.product(*[range(self._start[i],self._end[i]) for i in range(self.dim())) ]))
+        return list(itertools.product(*[range(self._start[i],self._end[i]) for i in range(self.dim()) ] ) )
 
     def loc_work_cell_list(self):
-        return list(itertools.product(*[range(0,self._end[i]-self._stensize)] for i in range(self.dim())))
+        return list(itertools.product(*[range(0,self._end[i]-self._stensize) for i in range(self.dim()) ] ) )
 
     def reset(self):
         for key in self.nbr_ghost_done:
@@ -105,7 +105,7 @@ class Solution(object):
         self._stensize = stensize
         self._dimension = dimension(self._array)
         self._size = array_size(self._array)
-        self.blocks = list(self.Block_Generator)
+        self.blocks = list(self.Block_Generator())
         self._block_dict = {}
         self.fill_neighbors()
 
@@ -117,13 +117,16 @@ class Solution(object):
 
     def Block_Generator(self):
         for coords in itertools.product(*[xrange(self._stensize,comp_dim-self._stensize,self._block_size) for comp_dim in self.size()]):
+            print(coords)
             start = [x-self._stensize for x in coords]
             end = [max(coords[i]+self._block_size+self._stensize,self.size()[i]) for i in range(len(coords))]
+            print([start,end])
             yield Work_Block(coords, get_subarray(self._array, start, end), self._stensize)
 
     def fill_neighbors(self):
         for block in self.blocks:
             self._block_dict[block.coords] = block
+        for block in self.blocks:
             for neighbor in self.neighbors(block):
                 block.add_neighbor(neighbor)
 
@@ -136,7 +139,7 @@ class Solution(object):
                         if block.coords[i] == self._stensize:
                             _temp[i] = xrange(self._stensize, self.size()[i] - self._stensize, self._block_size)[-1]
                             block.add_bdry(self._block_dict[_temp])
-                        else if block.coords[i] == xrange(self._stensize, self.size()[i] - self._stensize, self._block_size)[-1]
+                        elif block.coords[i] == xrange(self._stensize, self.size()[i] - self._stensize, self._block_size)[-1]:
                             _temp[i] = self._stensize
                             block.add_bdry(self._block_dict[_temp])
 
@@ -151,7 +154,7 @@ class Solution(object):
         return False
 
     def neighbors(self, work):
-        return [self._block_dict[neighbor] for neighbor self.neighbor_coords(work)]
+        return [self._block_dict[neighbor] for neighbor in self.neighbor_coords(work)]
 
     def neighbor_coords(self, work):
         _temp = work.coords
@@ -186,12 +189,14 @@ class Solution(object):
 # rewrite this into the Work_Block class in the future -Alex
 def Update_Ghost(work1, work2):
     _temp = set(work2.work_cell_list())
-    for [cell for cell in work1.cell_list() if cell in _temp]:
-        work1.set_val_glob(cell, float(work2.get_val_glob(cell)))
+    for cell in work1.cell_list():
+        if cell in _temp:
+            work1.set_val_glob(cell, float(work2.get_val_glob(cell)))
 
     _temp = set(work1.work_cell_list())
-    for [cell for cell in work2.cell_list() if cell in _temp]:
-        work2.set_val_glob(cell, float(work1.get_val_glob(cell)))
+    for cell in work2.cell_list():
+        if cell in _temp:
+            work2.set_val_glob(cell, float(work1.get_val_glob(cell)))
 
     work1.nbr_ghost_done[work2.coords] = True
     work1.nbr_done[work2.coords] = False
@@ -224,7 +229,6 @@ def array_size(array, dimensions=[]):
 #
 # probably very slow, replace with numpy implementation later
 def get_subarray(array, index_start, index_end):
-    print(index_start,index_end)
     subarray = array[index_start[0]:index_end[0]+1]
     if type(subarray[0]) is not list:
         return subarray

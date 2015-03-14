@@ -1,9 +1,11 @@
 # local criteria for things like setting up initial conditions, boundary, constants
 import numpde
+import math
+import itertools
 
 const_range = 2*math.pi
 const_cfl = 0.9
-const_stensize = 5
+const_stensize = 2
 const_dim = 2
 const_num_cells = 1024
 const_block_size = 128
@@ -33,4 +35,4 @@ def Add_Ghost_Cells(array, stensize, periodic=False):
         array = array[-stensize:]+array
         array = array + array[stensize:2*stensize]
     else:
-        # some other boundary condition
+        pass# some other boundary condition
