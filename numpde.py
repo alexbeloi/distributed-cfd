@@ -15,9 +15,9 @@ class Work_Block(object):
     def __init__(self, coords, array, stensize, time_step=0):
         self.coords = coords
         self._start = coords
-        self._end = map(operator.sub(map(operator.add, coords, self.size()), [2*stensize for i in range(self.dim())]))
         self._array = array
         self._stensize = stensize
+        self._end = self.__end()
         self._dimension = dimension(array)
         self.time_step = time_step
 
@@ -32,14 +32,19 @@ class Work_Block(object):
         self.bdry_ghost_done = {}
 
     def add_neighbor(self, work2):
-        self.nbr_block_dict[work2.coord] = work2
-        self.nbr_done[work2.coord] = False
-        self.nbr_ghost_done[work2.coord] = False
+        self.nbr_block_dict[work2.coords] = work2
+        self.nbr_done[work2.coords] = False
+        self.nbr_ghost_done[work2.coords] = False
 
     def add_bdry(self, work2):
-        self.bdry_block_dict[work2.coord] = work2
-        self.bdry_done[work2.coord] = False
-        self.bdry_ghost_done[work2.coord] = False
+        self.bdry_block_dict[work2.coords] = work2
+        self.bdry_done[work2.coords] = False
+        self.bdry_ghost_done[work2.coords] = False
+
+    def __end(self):
+        _temp = map(operator.add, self.coords, self.size())
+        __temp = map(operator.sub, _temp, [2*self._stensize for i in range(self.dim())] )
+        return __temp
 
     def dim(self):
         return dimension(self._array)
@@ -104,6 +109,7 @@ class Solution(object):
         self._block_size = block_size
         self._stensize = stensize
         self._dimension = dimension(self._array)
+        self.periodic = periodic
         self._size = array_size(self._array)
         self.blocks = list(self.Block_Generator())
         self._block_dict = {}
@@ -117,10 +123,12 @@ class Solution(object):
 
     def Block_Generator(self):
         for coords in itertools.product(*[xrange(self._stensize,comp_dim-self._stensize,self._block_size) for comp_dim in self.size()]):
-            print(coords)
             start = [x-self._stensize for x in coords]
-            end = [max(coords[i]+self._block_size+self._stensize,self.size()[i]) for i in range(len(coords))]
-            print([start,end])
+            end = [min(coords[i]+self._block_size+self._stensize,self.size()[i]) for i in range(len(coords))]
+
+            # print 'coords in block_gen: {}'.format(coords)
+            # print 'start and end in block_gen: {} {}'.format(start, end)
+
             yield Work_Block(coords, get_subarray(self._array, start, end), self._stensize)
 
     def fill_neighbors(self):
@@ -132,16 +140,16 @@ class Solution(object):
 
             # if boundary is periodic, must also keep track of blocks on opposite
             # end of the solution space
-            if periodic:
+            if self.periodic:
                 if block.is_boundary:
                     for i in range(block.dim()):
                         _temp = list(block.coords)
                         if block.coords[i] == self._stensize:
                             _temp[i] = xrange(self._stensize, self.size()[i] - self._stensize, self._block_size)[-1]
-                            block.add_bdry(self._block_dict[_temp])
+                            block.add_bdry(self._block_dict[tuple(_temp)])
                         elif block.coords[i] == xrange(self._stensize, self.size()[i] - self._stensize, self._block_size)[-1]:
                             _temp[i] = self._stensize
-                            block.add_bdry(self._block_dict[_temp])
+                            block.add_bdry(self._block_dict[tuple(_temp)])
 
 
     def add_block(self, work):
@@ -158,8 +166,8 @@ class Solution(object):
 
     def neighbor_coords(self, work):
         _temp = work.coords
-        _temp_list = [map(operator.add, coords, item) for item in _shifts(self._block_size, self.dim())] + [map(operator.sub, coords, item) for item in _shifts(len(coords), block_size)]
-        return [neighbor for neighbor in _temp_list if _valid_coord(neighbor, solution) and neighbor != _temp]
+        _temp_list = [map(operator.add, _temp, item) for item in self._shifts(self._block_size, self.dim())] + [map(operator.sub, _temp, item) for item in self._shifts(self._block_size, self.dim())]
+        return [tuple(neighbor) for neighbor in _temp_list if self._valid_coord(neighbor) and neighbor != _temp]
 
     # boring stuff for detecting/finding neighbor cells
     def _valid_coord(self, coords):
@@ -173,7 +181,7 @@ class Solution(object):
     # simple function to generate all tuples of a certain length with
     # letters '0' and 'block_size'
     # http://stackoverflow.com/questions/19671826/possible-binary-numbers-function-python
-    def _shifts(block_size, N):
+    def _shifts(self, block_size, N):
         import itertools
         return itertools.product((0, block_size), repeat=N)
 
@@ -218,11 +226,12 @@ def dimension(array):
     return len(array_size(array))
 
 def array_size(array, dimensions=[]):
+    _temp = list(dimensions)
     if type(array[0]) is list:
-        dimensions.append(len(array))
-        return array_size(array[0], dimensions)
-    dimensions.append(len(array))
-    return dimensions
+        _temp.append(len(array))
+        return array_size(array[0], _temp)
+    _temp.append(len(array))
+    return _temp
 
 # gets subarray from array, the components of tuples index_start and index_end
 # define range to pick in each dimension

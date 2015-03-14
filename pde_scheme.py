@@ -45,7 +45,6 @@ def Update_Block(work):
 
     work.array = list(temp_array)
 
-
 def Update_Flags(work):
     for key in work.nbr_block_dict:
         work.nbr_block_dict[key].nbr_done[work.coord] = True

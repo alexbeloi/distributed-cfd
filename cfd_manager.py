@@ -74,7 +74,7 @@ class Problem(object):
 
         if self._output:
             with open(self._output, 'w') as f:
-                f.write("N=%d \n" % len(self._solution))
+                f.write("N=%d \n" % self._solution.size()[0])
                 f.flush()
 
         self._work_queue = WorkQueue()
@@ -154,6 +154,7 @@ if __name__ == '__main__':
 
     finish_time = int(sys.argv[1])
 
+    num_cells = local.const_num_cells
     rangex = local.const_range
     cfl = local.const_cfl
     stensize = local.const_stensize
