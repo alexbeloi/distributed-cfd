@@ -141,7 +141,7 @@ class Problem(object):
         for cell in work.loc_work_cell_list():
             self._finished_cells[cell[-1]].append[cell]
 
-        while len(self._finished_cells[self._current_time_step]) = local.const_num_cells*self._solution.dim():
+        while len(self._finished_cells[self._current_time_step]) == local.const_num_cells*self._solution.dim():
             if self._output:
                 with open(self._output, 'a') as f:
                     for cell in self._finished_cells[self._current_time_step]:
