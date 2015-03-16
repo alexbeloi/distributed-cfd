@@ -112,8 +112,8 @@ class Work_Block(object):
         # print('trying to get stuff in :', _temp, 'array is size: ', self.size())
 
         output = list(map(operator.sub, map(operator.add, cell, self._start),[self._stensize]*self.dim()))
-        output.append(self.time_step)
         output.append(self.get_val_loc(cell))
+        output.append(self.time_step)
         return output
 
 # Solution

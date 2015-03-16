@@ -77,6 +77,8 @@ class Problem(object):
     def __init__(self, solution, output, finish_time):
         self._output = output
         self._solution = solution
+        self._finished_cells = [[]]*int(finish_time/local.const_dt)
+        self._current_time_step = 0
         # self.block_holder = numpde.Empty_Solution_Block_Holder(self._solution,block_size)
 
         if self._output:
@@ -135,10 +137,22 @@ class Problem(object):
 
         return work
 
+    def arrange_output(self, work):
+        for cell in work.loc_work_cell_list():
+            self._finished_cells[cell[-1]].append[cell]
+
+        while len(self._finished_cells[self._current_time_step]) = local.const_num_cells*self._solution.dim():
+            if self._output:
+                with open(self._output, 'a') as f:
+                    for cell in self._finished_cells[self._current_time_step]:
+                        json.dump(work.real_cell_out(cell), f)
+                        f.write('\n')
+                    f.flush()
+            self._current_time_step = self._current_time_step+1
+
     def finish_work(self, output_spec):
         with self._lock:
             work = self._rebuild(output_spec)
-
             dupe = self._work_queue.complete(work)
             if dupe:
                 return
@@ -150,12 +164,9 @@ class Problem(object):
             pde_scheme.Update_Flags(work)
 
             # print("finished flags for: ", work.coords)
-            if self._output:
-                with open(self._output, 'a') as f:
-                    for cell in work.loc_work_cell_list():
-                        json.dump(work.real_cell_out(cell), f)
-                        f.write('\n')
-                    f.flush()
+            arrange_output(work)
+
+
 
             # if we haven't reached finish time, there's more work to do
             if work.time_step*local.const_dt < finish_time:
