@@ -191,7 +191,7 @@ class Solution(object):
     # boring stuff for detecting/finding neighbor cells
     def _valid_coord(self, coords):
         for i in range(self.dim()):
-            if coords[i] <0 or coords[i] >= self.size()[i]:
+            if coords[i] <0 or coords[i] >= self.size()[i]-2*self._stensize:
                 return False
         return True
 

@@ -5,15 +5,16 @@ import time
 import threading
 import numpde
 import pde_scheme
+import time
 
 # xmlrpclib.Marshaller.dispatch[type(0L)] = lambda _, v, w: w("<value><i8>%d</i8></value>" % v)
 # xmlrpclib.Marshaller.dispatch[type(0)] = lambda _, v, w: w("<value><i8>%d</i8></value>" % v)
 
 def setup_block(work_spec):
-    coords = work_spec['coords']
-    array = work_spec['array']
-    stensize = work_spec['stensize']
-    time_step = work_spec['time_step']
+    coords = work_spec.get('coords', None)
+    array = work_spec.get('array', None)
+    stensize = work_spec.get('stensize', None)
+    time_step = work_spec.get('time_step', None)
     work = numpde.Work_Block(coords, array, stensize, time_step)
     return work
 
@@ -32,8 +33,11 @@ class Worker(threading.Thread):
                 time.sleep(10)
                 continue
             work = setup_block(work_spec)
-            print('working on:', tuple(work.coords))
+
+            _start_time = time.time()
             pde_scheme.Update_Block(work)
+            _end_time = time.time()
+            # print('finished work on:', work.coords, 'time: ', work.time_step, 'work took: ', _end_time-_start_time, 'ms')
             self._server.finish_work({'coords':tuple(work.coords), 'array':work._array})
 
 if __name__ == '__main__':

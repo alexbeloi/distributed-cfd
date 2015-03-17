@@ -1,3 +1,4 @@
+import math
 import threading
 import time
 import xmlrpc.client
@@ -15,10 +16,8 @@ from xmlrpc.server import SimpleXMLRPCServer, SimpleXMLRPCRequestHandler
 # add:      register a new work item
 # work:     return oldest incomplete work item
 # complete: mark work item as complete
-# stats:    return work statistics
 #
-# we use coords and time_step to record finished blocks and
-# store the actual block data in a dictionary for later reference
+# we use coords and time_step to record finished blocks
 
 class WorkQueue(object):
     def __init__(self):
@@ -26,21 +25,16 @@ class WorkQueue(object):
         self._completed = set()
 
     def add(self, work):
-        self._incomplete.append(work)
-
-    # def add_finished_with_neighbors(self, work):
-    #     self._completed_with_neighbors.append(work)
+        self._incomplete.insert(0, work)
 
     def work(self):
-        # qu = [stuff.coords for stuff in self._incomplete]
-        # print('trying to get work, here is the current queue: ', qu)
+        qu = [stuff.coords for stuff in self._incomplete]
+        print('trying to get work, here is the current queue: ', qu)
 
         while self._incomplete:
             work = self._incomplete.pop()
             if not self.check_completed(work):
                 self._completed.add(work)
-
-                print("time: ",work.time_step,)
 
                 return work
         return None
@@ -50,36 +44,37 @@ class WorkQueue(object):
         dupe = _stamp in self._completed
         if not dupe:
             self._completed.add(_stamp)
-            #self._block_dict[tuple(work.coords)] = work
         return dupe
 
     def check_completed(self, work):
         return (work.coords, work.time_step) in self._completed
 
-class WorkGenerator(object):
-    def __init__(self, solution):
-        self._solution = solution
-        self._done = False
-        self._work = self.__work_generator()
-
-    def __work_generator(self):
-        for x in self._solution.blocks:
-            yield x
-        self._done = True
-
-    def __iter__(self):
-        return self._work
-
-    def next(self):
-        return next(self._work)
+# class WorkGenerator(object):
+#     def __init__(self, solution):
+#         self._solution = solution
+#         self._done = False
+#         self._work = self.__work_generator()
+#
+#     def __work_generator(self):
+#         for x in self._solution.blocks:
+#             yield x
+#         self._done = True
+#
+#     def __iter__(self):
+#         return self._work
+#
+#     def next(self):
+#         return next(self._work)
 
 class Problem(object):
     def __init__(self, solution, output, finish_time):
         self._output = output
         self._solution = solution
-        self._finished_cells = [[]]*int(finish_time/local.const_dt)
-        self._current_time_step = 0
-        # self.block_holder = numpde.Empty_Solution_Block_Holder(self._solution,block_size)
+
+        self._finished_cells = [list([]) for _ in range(100)] #figure out a better way
+        self._expected_cells = int(math.pow(local.const_num_cells,self._solution.dim()))
+
+        self._current_time_step = 1
 
         if self._output:
             with open(self._output, 'w') as f:
@@ -87,45 +82,36 @@ class Problem(object):
                 f.flush()
 
         self._work_queue = WorkQueue()
-        self._work_maker = WorkGenerator(self._solution)
+        self._queue_init_fill()
+
+        # self._work_maker = WorkGenerator(self._solution)
 
         self._lock = threading.Lock()
 
-        # self._mon_thread = threading.Thread(target=self.__monitor)
-        # self._mon_thread.daemon = True
-        # self._mon_thread.start()
+    def _queue_init_fill(self):
+        for block in self._solution.blocks:
+            self._work_queue.add(block)
+            print(block.coords)
 
-    def __get_work(self):
-        try:
-            # fill up the work queue with new work
-            _temp = iter(self._work_maker)
-            work = next(_temp)
-            self._work_queue.add(work)
-            return work
-        except StopIteration:
-            pass
-        # now drain the work queue
-        return self._work_queue.work()
-
-    def __report_unlocked(self):
-        print(self._work_maker.progress())
-
-    # def __monitor(self):
-    #     while True:
-    #         with self._lock:
-    #             self.__report_unlocked()
-    #         time.sleep(1)
+    # def __get_work(self):
+    #     print('inside of __get_work')
+    #     try:
+    #         # fill up the work queue with new work
+    #         _temp = iter(self._work_maker)
+    #         work = next(_temp)
+    #         self._work_queue.add(work)
+    #         return work
+    #     except StopIteration:
+    #         pass
+    #     # now drain the work queue
+    #     return self._work_queue.work()
 
     def get_work(self):
+        print('test1')
         with self._lock:
-            work = self.__get_work()
+            work = self._work_queue.work()
             if not work:
                 return None
-
-            # print('working on: ',work.coords)
-            # for key in work.nbr_block_dict:
-            #     print('neighbor of ', work.coords, ':', key)
-
             return {'coords':work.coords, 'array':work._array, 'stensize':work._stensize, 'time_step':work.time_step}
 
     def _rebuild(self, output_spec):
@@ -137,17 +123,21 @@ class Problem(object):
 
         return work
 
-    def arrange_output(self, work):
-        for cell in work.loc_work_cell_list():
-            self._finished_cells[cell[-1]].append[cell]
+    def _arrange_output(self, work):
+        for item in work.loc_work_cell_list():
+            cell = work.real_cell_out(item)
+            self._finished_cells[work.time_step].append(cell)
 
-        while len(self._finished_cells[self._current_time_step]) == local.const_num_cells*self._solution.dim():
+        while len(self._finished_cells[self._current_time_step]) == self._expected_cells:
             if self._output:
                 with open(self._output, 'a') as f:
                     for cell in self._finished_cells[self._current_time_step]:
-                        json.dump(work.real_cell_out(cell), f)
+                        json.dump(cell, f)
                         f.write('\n')
                     f.flush()
+
+
+            print("finished time: ", local.const_dt*self._current_time_step,)
             self._current_time_step = self._current_time_step+1
 
     def finish_work(self, output_spec):
@@ -164,7 +154,7 @@ class Problem(object):
             pde_scheme.Update_Flags(work)
 
             # print("finished flags for: ", work.coords)
-            arrange_output(work)
+            self._arrange_output(work)
 
 
 
@@ -199,7 +189,6 @@ class Handler(SimpleXMLRPCRequestHandler):
 class ProblemProxy(object):
     def __init__(self, problem):
         self._prob = problem
-
     def get_work(self):
         return self._prob.get_work()
 
@@ -222,14 +211,18 @@ if __name__ == '__main__':
         output = sys.argv[2]
 
     # Get initial condition and boundary conditions from local.py
-    solution = numpde.Solution(local.Init_Condition(), block_size, stensize, True)
+    ic = local.init_condition()
+    ic = local.add_ghost_cells(ic, stensize, True)
+    solution = numpde.Solution(ic, block_size, stensize, True)
 
     print("starting problem", num_cells, cfl)
 
     p = Problem(solution, output, finish_time)
     pp = ProblemProxy(p)
 
-    server = SimpleXMLRPCServer(("0.0.0.0", 8000), logRequests=False,
-            allow_none=True)
+    # test = pp.get_work()
+
+    # server = SimpleXMLRPCServer(("0.0.0.0", 8000), logRequests=False,            allow_none=True)
+    server = SimpleXMLRPCServer(("0.0.0.0", 8000), Handler)
     server.register_instance(pp)
     server.serve_forever()
