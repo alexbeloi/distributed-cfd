@@ -8,6 +8,14 @@ import pde_scheme
 import local
 import itertools
 import json
+
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
+from mpl_toolkits.mplot3d import Axes3D
+from matplotlib import cm
+
+
+
 from xmlrpc.server import SimpleXMLRPCServer, SimpleXMLRPCRequestHandler
 
 #
@@ -28,8 +36,8 @@ class WorkQueue(object):
         self._incomplete.insert(0, work)
 
     def work(self):
-        qu = [stuff.coords for stuff in self._incomplete]
-        print('trying to get work, here is the current queue: ', qu)
+        # qu = [stuff.coords for stuff in self._incomplete]
+        # print('trying to get work, here is the current queue: ', qu)
 
         while self._incomplete:
             work = self._incomplete.pop()
@@ -49,23 +57,6 @@ class WorkQueue(object):
     def check_completed(self, work):
         return (work.coords, work.time_step) in self._completed
 
-# class WorkGenerator(object):
-#     def __init__(self, solution):
-#         self._solution = solution
-#         self._done = False
-#         self._work = self.__work_generator()
-#
-#     def __work_generator(self):
-#         for x in self._solution.blocks:
-#             yield x
-#         self._done = True
-#
-#     def __iter__(self):
-#         return self._work
-#
-#     def next(self):
-#         return next(self._work)
-
 class Problem(object):
     def __init__(self, solution, output, finish_time):
         self._output = output
@@ -75,6 +66,11 @@ class Problem(object):
         self._expected_cells = int(math.pow(local.const_num_cells,self._solution.dim()))
 
         self._current_time_step = 1
+
+        plt.ion()
+        self.fig = plt.figure()
+        self.ax = Axes3D(self.fig)
+        # wframe = self.ax.pot_wireframe
 
         if self._output:
             with open(self._output, 'w') as f:
@@ -107,7 +103,6 @@ class Problem(object):
     #     return self._work_queue.work()
 
     def get_work(self):
-        print('test1')
         with self._lock:
             work = self._work_queue.work()
             if not work:
@@ -136,6 +131,18 @@ class Problem(object):
                         f.write('\n')
                     f.flush()
 
+            else:
+                self.ax.cla()
+                X = []
+                Y = []
+                Z = []
+                for cell in self._finished_cells[self._current_time_step]:
+                    X.append(cell[0])
+                    Y.append(cell[1])
+                    Z.append(cell[2])
+
+                self.ax.plot_trisurf(X,Y,Z)
+                plt.draw()
 
             print("finished time: ", local.const_dt*self._current_time_step,)
             self._current_time_step = self._current_time_step+1
@@ -147,16 +154,11 @@ class Problem(object):
             if dupe:
                 return
 
-            # qu = [stuff.coords for stuff in self._work_queue._incomplete]
-            # print(work.coords, 'just finished and here is the current queue: ', qu)
-
             # record finished work
             pde_scheme.Update_Flags(work)
 
             # print("finished flags for: ", work.coords)
             self._arrange_output(work)
-
-
 
             # if we haven't reached finish time, there's more work to do
             if work.time_step*local.const_dt < finish_time:
@@ -180,17 +182,32 @@ class Problem(object):
 class Handler(SimpleXMLRPCRequestHandler):
      def _dispatch(self, method, params):
          try:
+             print(dir(self.server.funcs.keys()))
              return self.server.funcs[method](*params)
          except:
              import traceback
              traceback.print_exc()
              raise
 
+    # def __init__(self, problem):
+    #     self._prob = problem
+    # def get_work(self):
+    #     return self._prob.get_work()
+    #
+    # def finish_work(self, output_spec):
+    #     self._prob.finish_work(output_spec)
+
 class ProblemProxy(object):
     def __init__(self, problem):
         self._prob = problem
     def get_work(self):
-        return self._prob.get_work()
+        try:
+            return self._prob.get_work()
+        except Exception as e:
+            print(e)
+            import traceback
+            traceback.print_exc()
+            raise(e)
 
     def finish_work(self, output_spec):
         self._prob.finish_work(output_spec)
@@ -210,7 +227,7 @@ if __name__ == '__main__':
     if len(sys.argv) == 3:
         output = sys.argv[2]
 
-    # Get initial condition and boundary conditions from local.py
+    # Get initial condition and boundary conditions from local.py (periodic boundary=True)
     ic = local.init_condition()
     ic = local.add_ghost_cells(ic, stensize, True)
     solution = numpde.Solution(ic, block_size, stensize, True)
@@ -220,9 +237,13 @@ if __name__ == '__main__':
     p = Problem(solution, output, finish_time)
     pp = ProblemProxy(p)
 
-    # test = pp.get_work()
-
-    # server = SimpleXMLRPCServer(("0.0.0.0", 8000), logRequests=False,            allow_none=True)
-    server = SimpleXMLRPCServer(("0.0.0.0", 8000), Handler)
-    server.register_instance(pp)
-    server.serve_forever()
+    server = SimpleXMLRPCServer(("0.0.0.0", 8000), logRequests=False, allow_none=True)
+    # server = SimpleXMLRPCServer(("0.0.0.0", 8000), Handler)
+    server.register_instance(pp, allow_dotted_names=True)
+    server.register_introspection_functions()
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        print("\nKeyboard interrupt received, exiting.")
+        server.server_close()
+        sys.exit(0)
